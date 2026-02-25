@@ -160,7 +160,7 @@ export default function AccountPage() {
 
       <main
         style={{
-          minHeight: '100vh',
+          minHeight: '100dvh',
           padding: '7rem 1rem 4rem',
           fontFamily: 'Poppins, sans-serif',
           background: 'linear-gradient(180deg, #fafafa 0%, #f9f9f9 100%)',

@@ -7,7 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { LogOut, Settings } from 'lucide-react';
+import { LogIn, LogOut, Settings } from 'lucide-react';
 
 export default function AuthHeader({
   onShowModal,
@@ -189,13 +189,15 @@ export default function AuthHeader({
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {!user ? (
             <button
+              className="mobile-login-circle"
               type="button"
               onClick={() => onShowModal('login')}
               aria-label="Log in"
               style={{
-                height: 34,
-                padding: '0 16px',
-                borderRadius: 10,
+                width: 44,
+                height: 44,
+                padding: 0,
+                borderRadius: '50%',
                 border: '1.5px solid rgba(17,17,17,0.70)',
                 background: 'rgba(255,255,255,0.85)',
                 color: '#111',
@@ -203,23 +205,24 @@ export default function AuthHeader({
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 850,
-                fontSize: '0.95rem',
+                fontSize: '1rem',
                 cursor: 'pointer',
                 boxShadow: '0 10px 24px rgba(0,0,0,.10)',
               }}
             >
-              Log In
+              <LogIn size={18} strokeWidth={2.2} />
             </button>
           ) : (
             <div ref={mobileAvatarRef} style={{ position: 'relative' }}>
               <button
+                className="mobile-avatar-circle"
                 type="button"
                 onClick={() => setShowLogout((p) => !p)}
                 title="Account Menu"
                 aria-label="Open account menu"
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 44,
+                  height: 44,
                   borderRadius: '50%',
                   border: 'none',
                   background: '#111',
@@ -493,6 +496,35 @@ export default function AuthHeader({
           .nav-desktop{ display: none !important; }
           .nav-mobile{ display: flex !important; width: 100%; max-width: 1400px; }
           .nav-right{ display: none !important; }
+          .mobile-login-circle{
+            width: 44px !important;
+            height: 44px !important;
+            min-width: 44px !important;
+            min-height: 44px !important;
+            max-width: 44px !important;
+            max-height: 44px !important;
+            padding: 0 !important;
+            border-radius: 999px !important;
+            aspect-ratio: 1 / 1 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+          }
+          .mobile-avatar-circle{
+            width: 44px !important;
+            height: 44px !important;
+            min-width: 44px !important;
+            min-height: 44px !important;
+            max-width: 44px !important;
+            max-height: 44px !important;
+            padding: 0 !important;
+            border-radius: 999px !important;
+            aspect-ratio: 1 / 1 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            line-height: 1 !important;
+          }
         }
         .nav-mobile button:focus-visible{
           outline: 3px solid rgba(17,17,17,0.20);

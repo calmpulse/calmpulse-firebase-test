@@ -6,11 +6,12 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import {
   toLocalDay,        // YYYY-MM-DD Europe/Paris
   weekDays,           // tableau Mon-Sun de la semaine ISO courante
-  streakStats,        // current / longest
 } from '@/lib/streak';
 
 import {
   collection,
+  doc,
+  getDoc,
   getDocs,
   query,
   where,
@@ -20,7 +21,7 @@ import {
 
 import AuthHeader  from '@/components/AuthHeader';
 import EntryModal  from '@/components/EntryModal';
-import { Flame, Calendar, TrendingUp, ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react';
+import { CalendarCheck2, Clock3, CalendarDays, ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react';
 
 /* ---------- CONSTANTES UI ---------- */
 const ACCENT = '#FB923C';
@@ -34,11 +35,13 @@ const FROM   = new Date(Date.UTC(2025, 0, 1, 12));
 export default function ProgressPage() {
   /* -------- état -------- */
   const [user,       setUser]       = useState<User | null>(null);
+  const [viewerNickname, setViewerNickname] = useState<string | null>(null);
   const [showModal,  setShowModal]  = useState(false);
   const [modalMode,  setModalMode]  = useState<'signup' | 'login'>('login');
   const [view,       setView]       = useState<'week' | 'month'>('week');
   const [loading,    setLoading]    = useState(true);
   const [days,       setDays]       = useState<string[]>([]);     // YYYY-MM-DD
+  const [totalMinutes, setTotalMinutes] = useState(0);
   /* mois courant = 1ᵉʳ jour du mois à 12 h UTC ⇒ pas de dérive DST */
   const [monthCursor, setMonthCursor] = useState<Date>(() => {
     const now = new Date();
@@ -54,11 +57,38 @@ export default function ProgressPage() {
       setUser(u);
       if (!u) {
         setDays([]);
+        setTotalMinutes(0);
         setLoading(false);
       }
     });
     return unsub;
   }, []);
+
+  /* -------- load nickname (used for Viewing as) -------- */
+  useEffect(() => {
+    if (!user?.uid) {
+      setViewerNickname(null);
+      return;
+    }
+    let alive = true;
+    const load = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        const nick = snap.exists() ? ((snap.data() as { nickname?: string | null }).nickname ?? '') : '';
+        const safe = nick.toString().trim().slice(0, 60);
+        const fallback = (user.displayName || user.email?.split('@')[0] || '').toString().trim().slice(0, 60);
+        if (!alive) return;
+        setViewerNickname(safe || fallback || null);
+      } catch {
+        const fallback = (user.displayName || user.email?.split('@')[0] || '').toString().trim().slice(0, 60);
+        if (alive) setViewerNickname(fallback || null);
+      }
+    };
+    void load();
+    return () => {
+      alive = false;
+    };
+  }, [user?.uid, user?.displayName, user?.email]);
 
   /* -------- fetch Firestore (avec cache sessionStorage user-specific) -------- */
   useEffect(() => {
@@ -76,8 +106,32 @@ export default function ProgressPage() {
     // Show cached data immediately for instant UI
     if (cached) {
       try {
-        const cachedDays = JSON.parse(cached);
-        setDays(cachedDays);
+        const parsed = JSON.parse(cached) as unknown;
+        // New format: { v: 2, sessions: [{ day, duration }] }
+        if (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          (parsed as { v?: number }).v === 2 &&
+          Array.isArray((parsed as { sessions?: unknown }).sessions)
+        ) {
+          const sessions = (parsed as { sessions: Array<{ day?: unknown; duration?: unknown }> }).sessions;
+          const map = new Map<string, number>();
+          for (const s of sessions) {
+            const day = typeof s.day === 'string' ? s.day : null;
+            const dur = typeof s.duration === 'number' ? s.duration : 0;
+            if (!day) continue;
+            map.set(day, Math.max(map.get(day) ?? 0, dur));
+          }
+          const uniqueDays = Array.from(map.keys()).sort();
+          const totalSeconds = Array.from(map.values()).reduce((a, b) => a + b, 0);
+          setDays(uniqueDays);
+          setTotalMinutes(Math.round(totalSeconds / 60));
+        } else if (Array.isArray(parsed)) {
+          // Old format: string[] of days
+          const cachedDays = parsed.filter((d): d is string => typeof d === 'string');
+          setDays(cachedDays);
+          setTotalMinutes(0);
+        }
         hasCachedData = true;
         setLoading(false); // Show UI immediately with cached data
       } catch {
@@ -98,23 +152,33 @@ export default function ProgressPage() {
           ),
         );
 
-        const all = snap.docs.map(d => {
-          const data = d.data();
-          // Use explicit 'day' field if available, otherwise calculate from endedAt
-          if (data.day && typeof data.day === 'string') {
-            return data.day;
-          }
-          // Fallback to calculating from endedAt timestamp
-          if (data.endedAt) {
-            return toLocalDay((data.endedAt as Timestamp).toDate());
-          }
-          return null;
-        }).filter((day): day is string => day !== null); // Remove any nulls and ensure type safety
-        
-        // Ensure unique days (in case of duplicates)
-        const uniqueDays = Array.from(new Set(all)).sort();
+        const map = new Map<string, number>(); // day -> durationSeconds
+        for (const d of snap.docs) {
+          const data = d.data() as {
+            day?: unknown;
+            endedAt?: unknown;
+            duration?: unknown;
+          };
+
+          const day =
+            typeof data.day === 'string'
+              ? data.day
+              : data.endedAt
+                ? toLocalDay((data.endedAt as Timestamp).toDate())
+                : null;
+          if (!day) continue;
+
+          const durationSeconds = typeof data.duration === 'number' ? data.duration : 0;
+          map.set(day, Math.max(map.get(day) ?? 0, durationSeconds));
+        }
+
+        const uniqueDays = Array.from(map.keys()).sort();
+        const totalSeconds = Array.from(map.values()).reduce((a, b) => a + b, 0);
         setDays(uniqueDays);
-        sessionStorage.setItem(cacheKey, JSON.stringify(uniqueDays));
+        setTotalMinutes(Math.round(totalSeconds / 60));
+
+        const sessions = Array.from(map.entries()).map(([day, duration]) => ({ day, duration }));
+        sessionStorage.setItem(cacheKey, JSON.stringify({ v: 2, sessions }));
       } catch (err) {
         console.error('Error fetching sessions:', err);
       } finally {
@@ -159,8 +223,9 @@ export default function ProgressPage() {
   }
 
   /* -------- métriques -------- */
-  const { current, longest } = streakStats(days);
-  const total  = days.length;
+  const totalDays = days.length;
+  const monthKeyNow = toLocalDay(new Date()).slice(0, 7); // YYYY-MM in Europe/Paris
+  const daysThisMonth = days.filter((d) => d.startsWith(monthKeyNow)).length;
   const week   = weekDays();
 
   /* -------- données Month -------- */
@@ -215,7 +280,7 @@ export default function ProgressPage() {
       <main
         className="progress-main"
         style={{
-          minHeight: '100vh',
+          minHeight: '100dvh',
           background: 'linear-gradient(180deg, #fafafa 0%, #f9f9f9 100%)',
           fontFamily: 'Poppins',
           padding: '7rem 1rem 2rem',
@@ -239,48 +304,59 @@ export default function ProgressPage() {
                 </p>
               </div>
 
+              {user && viewerNickname && (
               <div
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 10,
-                  padding: '10px 12px',
+                    justifyContent: 'flex-end',
+                    gap: 8,
+                    fontSize: '.86rem',
+                    fontWeight: 650,
+                    color: 'rgba(17,17,17,0.62)',
+                    lineHeight: 1,
+                  }}
+                >
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 8,
+                      height: 8,
                   borderRadius: 999,
-                  background: '#fff',
-                  border: '1px solid rgba(0,0,0,.06)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,.04)',
-                }}
-              >
-                <span style={{ fontSize: '.92rem', color: '#111', fontWeight: 700 }}>
-                  Viewing as {user.displayName || user.email?.split('@')[0] || 'Member'}
-                </span>
+                      background: 'rgba(17,17,17,0.16)',
+                      display: 'inline-block',
+                    }}
+                  />
+                  <span style={{ color: 'rgba(17,17,17,0.52)' }}>Viewing as</span>
+                  <span style={{ color: 'rgba(17,17,17,0.75)', fontWeight: 750 }}>{viewerNickname}</span>
               </div>
+              )}
             </div>
           </div>
 
           {/* ---- stat cards ---- */}
           <MetricGrid className="metrics-grid">
             <Metric
-              label="Current streak"
-              value={current}
+              label="Days shown up"
+              value={totalDays}
               note="days"
-              icon={<Flame size={20} stroke={ACCENT} />}
+              icon={<CalendarCheck2 size={20} stroke={ACCENT} />}
               className="metric-card metric-0"
               tone="orange"
             />
             <Metric
-              label="Longest streak"
-              value={longest}
-              note="days"
-              icon={<TrendingUp size={20} stroke={ACCENT} />}
+              label="Minutes meditated"
+              value={totalMinutes}
+              note="min"
+              icon={<Clock3 size={20} stroke={ACCENT} />}
               className="metric-card metric-1"
               tone="orangeSoft"
             />
             <Metric
-              label="Total sessions"
-              value={total}
-              note="completed"
-              icon={<Calendar size={20} stroke={ACCENT} />}
+              label="This month"
+              value={daysThisMonth}
+              note="days"
+              icon={<CalendarDays size={20} stroke={ACCENT} />}
               className="metric-card metric-2"
               tone="neutral"
             />
@@ -481,7 +557,7 @@ const FullPageCenter = ({
 }: { children: React.ReactNode }) => (
   <div
     style={{
-      minHeight: '100vh',
+      minHeight: '100dvh',
       fontFamily: 'Poppins',
       display:   'flex',
       alignItems:'center',
@@ -591,7 +667,7 @@ function Metric({
 
         <div style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 10 }}>
           <div style={{ fontSize: '2.5rem', fontWeight: 900, color: INK, letterSpacing: -0.6 }}>
-            {value}
+            {value.toLocaleString('en-US')}
           </div>
           <div style={{ height: 10, width: 10, borderRadius: 999, background: ACCENT, opacity: 0.9 }} />
         </div>

@@ -146,7 +146,7 @@ export default function AudioStoriesPage() {
       <main
         className="stories-main"
         style={{
-          minHeight: '100vh',
+          minHeight: '100dvh',
           background: 'linear-gradient(180deg, #fafafa 0%, #f9f9f9 100%)',
           fontFamily: 'Poppins',
           padding: '7rem 1rem 4rem',

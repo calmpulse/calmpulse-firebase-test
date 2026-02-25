@@ -9,7 +9,7 @@ const siteUrl = 'https://www.calmpulsedaily.com';
 export const metadata: Metadata = {
   title: 'About Us',
   description:
-    'CalmPulseDaily is a light, minimalist meditation and breathing platform built in 2025 by a French start-up—designed to help busy minds reset with breath, calm, and awareness.',
+    'CalmPulseDaily helps people build a daily meditation habit — without pressure, streaks, or long routines.',
   alternates: {
     canonical: `${siteUrl}/about`,
   },
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     url: `${siteUrl}/about`,
     title: 'About Us | CalmPulseDaily',
     description:
-      'Created in 2025 by a French start-up, CalmPulseDaily helps people reconnect with themselves through breath, calm, and awareness—minimalist, AI-guided, and built for busy minds.',
+      'Created in 2025 by a small French team, CalmPulseDaily was built to make calm a simple, daily habit.',
     images: [
       {
         url: `${siteUrl}/logo.svg`,
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'About Us | CalmPulseDaily',
     description:
-      'Created in 2025 by a French start-up, CalmPulseDaily helps people reconnect with themselves through breath, calm, and awareness—minimalist, AI-guided, and built for busy minds.',
+      'Created in 2025 by a small French team, CalmPulseDaily was built to make calm a simple, daily habit.',
     images: [`${siteUrl}/logo.svg`],
   },
 };
@@ -100,7 +100,7 @@ export default function AboutPage() {
             name: 'About Us | CalmPulseDaily',
             url: `${siteUrl}/about`,
             description:
-              'Learn about CalmPulseDaily: a minimalist, AI-guided meditation and breathing platform created in 2025 by a French start-up.',
+              'Learn about CalmPulseDaily: a habit-first meditation platform created in 2025 by a small French team.',
             isPartOf: {
               '@type': 'WebSite',
               name: 'CalmPulseDaily',
@@ -115,7 +115,7 @@ export default function AboutPage() {
       <main
         className="about"
         style={{
-          minHeight: '100vh',
+          minHeight: '100dvh',
           fontFamily: 'Poppins, sans-serif',
           background: 'linear-gradient(180deg, #fafafa 0%, #ffffff 100%)',
           position: 'relative',
@@ -128,12 +128,11 @@ export default function AboutPage() {
               <div className="hero-copy">
                 <h1 className="hero-title">About Us</h1>
                 <p className="hero-sub">
-                  We are building CalmPulseDaily to help people reconnect with themselves—through breath, calm, and awareness.
-                  It&apos;s a minimalist, AI-guided meditation and breathing platform designed for busy minds.
+                  CalmPulseDaily helps people build a daily meditation habit, without pressure, streaks, or long routines.
+                  Designed for busy minds, it makes showing up simple: 30 seconds, 2 minutes, or 15 minutes. Any one counts.
                 </p>
                 <p className="hero-sub2">
-                  Created in <strong>2025</strong> by a French start‑up — surrounded by friends while building
-                  a calmer daily ritual.
+                  Created in <strong>2025</strong>, CalmPulseDaily was built to make calm a simple, daily habit.
                 </p>
 
                 <div className="hero-cta">
@@ -208,8 +207,7 @@ export default function AboutPage() {
                 </div>
                 <h2 className="w3-title">Why</h2>
                 <p className="w3-text">
-                  CalmPulseDaily exists to help people slow down every day, even when life is busy. We believe calm should be
-                  simple, accessible, and built through small daily pauses — not long routines or perfect discipline.
+                  CalmPulseDaily exists to help people stop breaking promises to themselves. We believe calm is built through small daily moments, not motivation, discipline, or perfect routines.
                 </p>
               </article>
 
@@ -220,8 +218,7 @@ export default function AboutPage() {
                 </div>
                 <h2 className="w3-title">How</h2>
                 <p className="w3-text">
-                  We remove friction from meditation by offering a single, short daily experience. CalmPulseDaily helps people build consistency, not overwhelm. 
-                  No libraries to browse, no decisions to make — just show up and breathe.
+                  We remove friction from meditation by offering one simple daily moment. No libraries to browse, no decisions to make, no pressure — just show up.
                 </p>
               </article>
 
@@ -232,8 +229,7 @@ export default function AboutPage() {
                 </div>
                 <h2 className="w3-title">What</h2>
                 <p className="w3-text">
-                  CalmPulseDaily is a daily guided meditation experience. Each day, users access a short session designed to
-                  reset the mind, track presence, and turn calm into a habit over time.
+                  CalmPulseDaily is a habit-first meditation platform. It helps turn mindfulness into a sustainable daily routine, even on busy or low-energy days.
                 </p>
               </article>
             </div>
@@ -244,8 +240,8 @@ export default function AboutPage() {
                 <div className="stat-label">Created</div>
               </div>
               <div className="stat">
-                <div className="stat-num">15</div>
-                <div className="stat-label">Minutes to reset</div>
+                <div className="stat-num">Any</div>
+                <div className="stat-label">Duration counts</div>
               </div>
               <div className="stat">
                 <div className="stat-num">0€</div>
@@ -261,7 +257,7 @@ export default function AboutPage() {
                   <h2>Contact us</h2>
                 </div>
                 <p>
-                  Questions, feedback, or partnership ideas? We’d love to hear from you — quick hello’s are welcome too.
+                  Questions, feedback, or partnership ideas? We’d love to hear from you — quick hellos are welcome too.
                 </p>
                 <div className="contact-actions">
                   <a className="contact-btn" href="mailto:calmpulsedaily@gmail.com">

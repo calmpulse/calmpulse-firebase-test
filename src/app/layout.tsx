@@ -100,7 +100,7 @@ export default function RootLayout({
             /* Critical styles for hero section - prevents FOUC */
             .hero,
             section.hero {
-              min-height: 100vh !important;
+              min-height: 100dvh !important;
               display: flex !important;
               flex-direction: column !important;
               align-items: center !important;

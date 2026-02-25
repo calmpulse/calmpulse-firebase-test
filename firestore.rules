@@ -2,6 +2,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isGroupMember(groupId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
+    }
+    function isGroupOwner(groupId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid;
+    }
+
     match /users/{userId} {
       allow read, write: if request.auth != null
                          && request.auth.uid == userId;
@@ -30,7 +42,6 @@ service cloud.firestore {
       // Enforce canonical doc id and basic data shape (prevents spoofing / inconsistent totals).
       allow create, update: if request.auth != null
         && request.resource.data.userId == request.auth.uid
-        && request.resource.data.duration == 900
         && request.resource.data.day is string
         && request.resource.data.month is string
         && request.resource.data.name is string
@@ -43,6 +54,122 @@ service cloud.firestore {
 
       // No deletes from clients (keeps all-time totals stable)
       allow delete: if false;
+    }
+
+    /* ========================= Groups MVP ========================= */
+    match /groupInvites/{code} {
+      // Signed-in users can read invites (code/link is the secret)
+      allow read: if signedIn();
+
+      // Create invite codes (any signed-in user; group page will show only to owner)
+      allow create: if signedIn()
+        && request.resource.data.groupId is string
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.active is bool;
+
+      // Only the group owner can deactivate an invite
+      allow update: if signedIn()
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.createdBy == resource.data.createdBy
+        && isGroupOwner(resource.data.groupId);
+
+      allow delete: if false;
+    }
+
+    // CollectionGroup rule for members - allows users to query their own memberships across all groups
+    match /{path=**}/members/{uid} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /groups/{groupId} {
+      // Allow read if member OR if group is public
+      allow read: if isGroupMember(groupId) || (resource.data.public == true);
+
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && (request.resource.data.public == null || request.resource.data.public is bool);
+
+      // Only owner can rename or change public status (basic MVP)
+      allow update: if isGroupOwner(groupId)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && (request.resource.data.public == null || request.resource.data.public is bool)
+        && (request.resource.data.archived == null || request.resource.data.archived is bool)
+        && (request.resource.data.name == null
+            || (request.resource.data.name is string
+                && request.resource.data.name.size() > 0
+                && request.resource.data.name.size() <= 60));
+
+      allow delete: if false;
+
+      match /members/{uid} {
+        allow read: if isGroupMember(groupId) || (get(/databases/$(database)/documents/groups/$(groupId)).data.public == true);
+
+        // Allow owner creation during group creation without invite code
+        // OR allow member creation with valid invite code
+        // OR allow joining public groups without invite code
+        allow create: if signedIn()
+          && uid == request.auth.uid
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.role in ['owner', 'member']
+          && request.resource.data.name is string
+          && request.resource.data.name.size() <= 60
+          && (
+            // Owner during group creation: role is owner, and either group doesn't exist yet (being created) or group exists with matching ownerId
+            (request.resource.data.role == 'owner'
+              && (
+                !exists(/databases/$(database)/documents/groups/$(groupId))
+                ||
+                (exists(/databases/$(database)/documents/groups/$(groupId))
+                  && get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid)
+              ))
+            ||
+            // Public group join: group is public, role is member, no invite code needed
+            (request.resource.data.role == 'member'
+              && exists(/databases/$(database)/documents/groups/$(groupId))
+              && get(/databases/$(database)/documents/groups/$(groupId)).data.public == true)
+            ||
+            // Private group join with invite code: require valid invite code
+            (request.resource.data.role == 'member'
+              && request.resource.data.inviteCode is string
+              && exists(/databases/$(database)/documents/groupInvites/$(request.resource.data.inviteCode))
+              && get(/databases/$(database)/documents/groupInvites/$(request.resource.data.inviteCode)).data.active == true
+              && get(/databases/$(database)/documents/groupInvites/$(request.resource.data.inviteCode)).data.groupId == groupId)
+          );
+
+        // Owner can remove members; members can leave themselves
+        allow delete: if signedIn()
+          && (isGroupOwner(groupId) || uid == request.auth.uid);
+
+        // No client updates to roles for MVP
+        allow update: if false;
+      }
+
+      match /checkins/{checkinId} {
+        allow read: if isGroupMember(groupId) || (get(/databases/$(database)/documents/groups/$(groupId)).data.public == true);
+
+        // One check-in per day per user per group: docId is uid_YYYY-MM-DD
+        allow create, update: if signedIn()
+          && isGroupMember(groupId)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.day is string
+          && request.resource.data.day.matches('^\\d{4}-\\d{2}-\\d{2}$')
+          && checkinId == request.auth.uid + '_' + request.resource.data.day
+          && request.resource.data.name is string
+          && request.resource.data.name.size() <= 60;
+
+        allow delete: if false;
+
+        match /reactions/{reactorId} {
+          allow read: if isGroupMember(groupId);
+          allow create, update, delete: if signedIn()
+            && isGroupMember(groupId)
+            && reactorId == request.auth.uid
+            && request.resource.data.emoji in ['🤍', '🌿', '🙏'];
+        }
+      }
     }
   }
 }

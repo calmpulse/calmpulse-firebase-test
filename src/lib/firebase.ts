@@ -20,6 +20,7 @@ const firebaseConfig = {
 export const firebaseProjectId = firebaseConfig.projectId;
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+export const firebaseApp = app;
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
@@ -59,4 +60,4 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export const storage = getStorage(app); 
+export const storage = getStorage(app);
