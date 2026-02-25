@@ -309,7 +309,6 @@ export default function GroupPage() {
               {inviteCode && isOwner && (
                 <div
                           style={{
-                            background: '#fff',
                     borderRadius: 16,
                     border: '1px solid rgba(102,126,234,0.15)',
                     padding: '1rem',
