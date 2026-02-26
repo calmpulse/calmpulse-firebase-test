@@ -107,6 +107,19 @@ export default function ProgressPage() {
     if (cached) {
       try {
         const parsed = JSON.parse(cached) as unknown;
+        // New format: { v: 3, days: string[], totalSeconds: number }
+        if (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          (parsed as { v?: number }).v === 3 &&
+          Array.isArray((parsed as { days?: unknown }).days) &&
+          typeof (parsed as { totalSeconds?: unknown }).totalSeconds === 'number'
+        ) {
+          const cachedDays = (parsed as { days: Array<unknown> }).days.filter((d): d is string => typeof d === 'string');
+          const totalSeconds = Math.max(0, (parsed as { totalSeconds: number }).totalSeconds);
+          setDays(cachedDays);
+          setTotalMinutes(Math.floor(totalSeconds / 60));
+        } else
         // New format: { v: 2, sessions: [{ day, duration }] }
         if (
           typeof parsed === 'object' &&
@@ -125,7 +138,7 @@ export default function ProgressPage() {
           const uniqueDays = Array.from(map.keys()).sort();
           const totalSeconds = Array.from(map.values()).reduce((a, b) => a + b, 0);
           setDays(uniqueDays);
-          setTotalMinutes(Math.round(totalSeconds / 60));
+          setTotalMinutes(Math.floor(totalSeconds / 60));
         } else if (Array.isArray(parsed)) {
           // Old format: string[] of days
           const cachedDays = parsed.filter((d): d is string => typeof d === 'string');
@@ -152,12 +165,14 @@ export default function ProgressPage() {
           ),
         );
 
-        const map = new Map<string, number>(); // day -> durationSeconds
+        const daySet = new Set<string>();
+        let rawTotalSeconds = 0;
         for (const d of snap.docs) {
           const data = d.data() as {
             day?: unknown;
             endedAt?: unknown;
             duration?: unknown;
+            completedSeconds?: unknown;
           };
 
           const day =
@@ -168,17 +183,20 @@ export default function ProgressPage() {
                 : null;
           if (!day) continue;
 
-          const durationSeconds = typeof data.duration === 'number' ? data.duration : 0;
-          map.set(day, Math.max(map.get(day) ?? 0, durationSeconds));
+          const completedSeconds =
+            typeof data.completedSeconds === 'number'
+              ? data.completedSeconds
+              : (typeof data.duration === 'number' ? data.duration : 0);
+          rawTotalSeconds += Math.max(0, completedSeconds);
+          daySet.add(day);
         }
 
-        const uniqueDays = Array.from(map.keys()).sort();
-        const totalSeconds = Array.from(map.values()).reduce((a, b) => a + b, 0);
+        const uniqueDays = Array.from(daySet).sort();
+        const totalSeconds = rawTotalSeconds;
         setDays(uniqueDays);
-        setTotalMinutes(Math.round(totalSeconds / 60));
+        setTotalMinutes(Math.floor(totalSeconds / 60));
 
-        const sessions = Array.from(map.entries()).map(([day, duration]) => ({ day, duration }));
-        sessionStorage.setItem(cacheKey, JSON.stringify({ v: 2, sessions }));
+        sessionStorage.setItem(cacheKey, JSON.stringify({ v: 3, days: uniqueDays, totalSeconds }));
       } catch (err) {
         console.error('Error fetching sessions:', err);
       } finally {

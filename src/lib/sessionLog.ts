@@ -13,6 +13,7 @@ import {
 
 const dailyDocId = (uid: string, d = new Date()) => `${uid}_${toLocalDay(d)}`;
 const monthKeyFromDay = (day: string) => day.slice(0, 7); // YYYY-MM
+const completedSessionDocId = (uid: string, d = new Date()) => `${uid}_${toLocalDay(d)}_${Date.now()}`;
 
 export async function startSession(uid: string): Promise<void> {
   if (!uid) return;
@@ -27,17 +28,24 @@ export async function completeSession(uid: string, durationSeconds: number): Pro
   if (!uid) return;
   const day = toLocalDay(new Date());
   const month = monthKeyFromDay(day);
+  const sessionDocId = completedSessionDocId(uid);
+  const plannedDurationSeconds = Math.max(0, Math.floor(durationSeconds));
+  const completedSeconds = Math.min(plannedDurationSeconds, plannedDurationSeconds);
 
   await setDoc(
-    doc(db, 'sessions', dailyDocId(uid)),
+    doc(db, 'sessions', sessionDocId),
     {
       userId: uid,
+      createdAt: serverTimestamp(),
       endedAt: serverTimestamp(),
       status: 'completed',
-      duration: durationSeconds,
+      plannedDurationSeconds,
+      completedSeconds,
+      duration: completedSeconds, // legacy compatibility
       day,
+      month,
     },
-    { merge: true },
+    { merge: false },
   );
 
   // Prefer a private "nickname" from the user's profile for public Community Hub display
