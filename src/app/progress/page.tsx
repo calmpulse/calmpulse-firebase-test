@@ -221,6 +221,7 @@ export default function ProgressPage() {
       monthRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [view]);
 
+
   /* -------- redirections / spinners -------- */
   if (!user) {
     return (
@@ -322,7 +323,7 @@ export default function ProgressPage() {
                   </h1>
                 </div>
                 <p style={{ fontSize: '1.03rem', color: '#555', margin: '.55rem 0 0', maxWidth: 720 }}>
-                  Calm, consistent, and measurable — your streak and sessions, at a glance.
+                  Calm, consistent, and measurable. Your sessions at a glance.
                 </p>
               </div>
 
