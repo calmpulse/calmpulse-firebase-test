@@ -50,6 +50,11 @@ export default function ProgressPage() {
 
   const weekRef  = useRef<HTMLDivElement>(null);
   const monthRef = useRef<HTMLDivElement>(null);
+  const week = weekDays();
+  const weekdayOrder = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 } as const;
+  const weekdayFromKey = (dayKey: string): keyof typeof weekdayOrder =>
+    new Intl.DateTimeFormat('en', { weekday: 'short', timeZone: 'Europe/Paris' }).format(new Date(`${dayKey}T12:00:00Z`)) as keyof typeof weekdayOrder;
+  const weekForDisplay = [...week].sort((a, b) => weekdayOrder[weekdayFromKey(a)] - weekdayOrder[weekdayFromKey(b)]);
 
   /* -------- listen to auth state changes -------- */
   useEffect(() => {
@@ -244,7 +249,6 @@ export default function ProgressPage() {
   const totalDays = days.length;
   const monthKeyNow = toLocalDay(new Date()).slice(0, 7); // YYYY-MM in Europe/Paris
   const daysThisMonth = days.filter((d) => d.startsWith(monthKeyNow)).length;
-  const week   = weekDays();
 
   /* -------- données Month -------- */
   const y = monthCursor.getUTCFullYear();
@@ -399,10 +403,10 @@ export default function ProgressPage() {
           {view === 'week' && (
             <CalendarCard title="This week" innerRef={weekRef}>
               <WeekGrid>
-                {week.map(d => (
+                {weekForDisplay.map(d => (
                   <Day
                     key={d}
-                    label={new Date(d).toLocaleDateString('en', { weekday: 'short' })}
+                    label={new Intl.DateTimeFormat('en', { weekday: 'short', timeZone: 'Europe/Paris' }).format(new Date(`${d}T12:00:00Z`))}
                     filled={days.includes(d)}
                     size={30}
                     variant="week"

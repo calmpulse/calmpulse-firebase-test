@@ -13,6 +13,14 @@ service cloud.firestore {
       return signedIn()
         && get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid;
     }
+    function isGroupAdmin(groupId) {
+      return signedIn()
+        && (
+          get(/databases/$(database)/documents/groups/$(groupId)).data.adminId == request.auth.uid
+          || get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
+          || get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid
+        );
+    }
 
     match /users/{userId} {
       allow read, write: if request.auth != null
@@ -65,13 +73,14 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.groupId is string
         && request.resource.data.createdBy == request.auth.uid
+        && isGroupAdmin(request.resource.data.groupId)
         && request.resource.data.active is bool;
 
       // Only the group owner can deactivate an invite
       allow update: if signedIn()
         && request.resource.data.groupId == resource.data.groupId
         && request.resource.data.createdBy == resource.data.createdBy
-        && isGroupOwner(resource.data.groupId);
+        && isGroupAdmin(resource.data.groupId);
 
       allow delete: if false;
     }
@@ -87,20 +96,37 @@ service cloud.firestore {
 
       allow create: if signedIn()
         && request.resource.data.ownerId == request.auth.uid
+        && (request.resource.data.adminId == null || request.resource.data.adminId == request.auth.uid)
+        && (request.resource.data.createdBy == null || request.resource.data.createdBy == request.auth.uid)
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 60
         && (request.resource.data.public == null || request.resource.data.public is bool);
 
-      // Only owner can rename or change public status (basic MVP)
-      allow update: if isGroupOwner(groupId)
+      // Only creator/admin can modify circle settings.
+      // Use resource.data directly for this document to avoid cross-document lookups.
+      allow update: if signedIn()
+        && (
+          resource.data.ownerId == request.auth.uid
+          || resource.data.adminId == request.auth.uid
+          || resource.data.createdBy == request.auth.uid
+        )
         && request.resource.data.ownerId == resource.data.ownerId
+        && (request.resource.data.name is string
+            && request.resource.data.name.size() > 0
+            && request.resource.data.name.size() <= 60)
         && (request.resource.data.public == null || request.resource.data.public is bool)
         && (request.resource.data.archived == null || request.resource.data.archived is bool)
-        && (request.resource.data.name == null
-            || (request.resource.data.name is string
-                && request.resource.data.name.size() > 0
-                && request.resource.data.name.size() <= 60));
+        && (
+          request.resource.data.adminId == null
+          || request.resource.data.adminId == resource.data.adminId
+          || request.resource.data.adminId == resource.data.ownerId
+        )
+        && (
+          request.resource.data.createdBy == null
+          || request.resource.data.createdBy == resource.data.createdBy
+          || request.resource.data.createdBy == resource.data.ownerId
+        );
 
       allow delete: if false;
 
@@ -139,9 +165,9 @@ service cloud.firestore {
               && get(/databases/$(database)/documents/groupInvites/$(request.resource.data.inviteCode)).data.groupId == groupId)
           );
 
-        // Owner can remove members; members can leave themselves
+        // Creator/admin can remove members; members can leave themselves
         allow delete: if signedIn()
-          && (isGroupOwner(groupId) || uid == request.auth.uid);
+          && (isGroupAdmin(groupId) || uid == request.auth.uid);
 
         // No client updates to roles for MVP
         allow update: if false;

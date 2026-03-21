@@ -218,7 +218,7 @@ export default function AboutPage() {
                 </div>
                 <h2 className="w3-title">How</h2>
                 <p className="w3-text">
-                  We remove friction from meditation by offering one simple daily moment. No libraries to browse, no decisions to make, no pressure — just show up.
+                  We remove friction from meditation by offering one simple daily moment. No libraries to browse, no decisions to make, no pressure. Just show up.
                 </p>
               </article>
 
@@ -257,7 +257,7 @@ export default function AboutPage() {
                   <h2>Contact us</h2>
                 </div>
                 <p>
-                  Questions, feedback, or partnership ideas? We’d love to hear from you — quick hellos are welcome too.
+                  Questions, feedback, or partnership ideas? We’d love to hear from you, quick hellos are welcome too.
                 </p>
                 <div className="contact-actions">
                   <a className="contact-btn" href="mailto:calmpulsedaily@gmail.com">

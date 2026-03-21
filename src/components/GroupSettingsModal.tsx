@@ -34,9 +34,9 @@ export default function GroupSettingsModal({
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState(group.name);
 
-  const handleRename = () => {
+  const handleRename = async () => {
     if (newName.trim() && newName.trim() !== group.name && onRename) {
-      onRename(newName.trim());
+      await Promise.resolve(onRename(newName.trim()));
       setRenaming(false);
     }
   };
@@ -107,7 +107,7 @@ export default function GroupSettingsModal({
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleRename();
+                      if (e.key === 'Enter') void handleRename();
                       if (e.key === 'Escape') {
                         setRenaming(false);
                         setNewName(group.name);
@@ -123,7 +123,7 @@ export default function GroupSettingsModal({
                     }}
                   />
                   <button
-                    onClick={handleRename}
+                    onClick={() => void handleRename()}
                     style={{
                       borderRadius: 8,
                       border: '1px solid rgba(0,0,0,.10)',
@@ -188,7 +188,7 @@ export default function GroupSettingsModal({
                     </span>
                     <span style={{ fontWeight: 850, fontSize: '.95rem', color: '#111' }}>Members</span>
                   </div>
-                  <div style={{ display: 'grid', gap: 8, padding: '0 12px 6px' }}>
+                  <div style={{ display: 'grid', gap: 8, padding: '0 12px 6px', maxHeight: 240, overflowY: 'auto' }}>
                     {members.map((m) => {
                       const isMe = currentUserId ? m.uid === currentUserId : false;
                       return (

@@ -13,6 +13,7 @@ import {
   runTransaction,
   serverTimestamp,
   setDoc,
+  limit,
   where,
   orderBy,
   type Timestamp,
@@ -39,6 +40,8 @@ export type Group = {
   id: string;
   name: string;
   ownerId: string;
+  adminId?: string;
+  createdBy?: string;
   public?: boolean;
   createdAt?: Timestamp;
   archived?: boolean;
@@ -92,18 +95,18 @@ export async function createGroup(name: string, isPublic: boolean = false): Prom
 
   const groupRef = doc(collection(db, 'groups'));
 
-  // Create a primary invite code (even for public groups, for owner's reference)
-  const inviteCode = await createInviteCode(groupRef.id);
-
   const nickname = await getNickname(uid);
   const memberName = nickname || fallbackNameFromAuth();
 
   await runTransaction(db, async (tx) => {
-    tx.set(groupRef, { 
-      name: groupName, 
-      ownerId: uid, 
+    tx.set(groupRef, {
+      name: groupName,
+      ownerId: uid,
+      adminId: uid,
+      createdBy: uid,
       public: isPublic,
-      createdAt: serverTimestamp() 
+      archived: false,
+      createdAt: serverTimestamp()
     });
 
     const memberRef = doc(db, 'groups', groupRef.id, 'members', uid);
@@ -113,9 +116,12 @@ export async function createGroup(name: string, isPublic: boolean = false): Prom
       role: 'owner',
       name: memberName,
       joinedAt: serverTimestamp(),
-      inviteCode: inviteCode, // Set it for reference, but rules allow owner without validation
+      inviteCode: '',
     });
   });
+
+  // Create primary invite code only after group exists and ownership is established.
+  const inviteCode = await createInviteCode(groupRef.id);
 
   return { groupId: groupRef.id, inviteCode };
 }
@@ -123,6 +129,18 @@ export async function createGroup(name: string, isPublic: boolean = false): Prom
 export async function createInviteCode(groupId: string): Promise<string> {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not logged in');
+  const groupSnap = await getDoc(doc(db, 'groups', groupId));
+  if (!groupSnap.exists()) throw new Error('Circle not found');
+  const groupData = groupSnap.data() as { ownerId?: string; adminId?: string };
+  const ownerOrAdmin = groupData.adminId || groupData.ownerId || '';
+  if (ownerOrAdmin !== uid) throw new Error('Only the circle creator can regenerate invite code');
+
+  const activeSnap = await getDocs(query(collection(db, 'groupInvites'), where('groupId', '==', groupId), where('active', '==', true), limit(10)));
+  await Promise.all(
+    activeSnap.docs.map(async (d) => {
+      await setDoc(doc(db, 'groupInvites', d.id), { active: false }, { merge: true });
+    }),
+  );
 
   for (let attempt = 0; attempt < 8; attempt++) {
     const code = randomCode(8);
@@ -134,6 +152,14 @@ export async function createInviteCode(groupId: string): Promise<string> {
     return code;
   }
   throw new Error('Could not allocate invite code. Try again.');
+}
+
+export async function getCurrentInviteCode(groupId: string): Promise<string | null> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return null;
+  const snap = await getDocs(query(collection(db, 'groupInvites'), where('groupId', '==', groupId), where('active', '==', true), limit(1)));
+  const code = snap.docs[0]?.id ?? null;
+  return code;
 }
 
 export async function deactivateInvite(code: string): Promise<void> {
@@ -301,10 +327,25 @@ export async function updateGroup(
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not logged in');
 
+  const groupSnap = await getDoc(doc(db, 'groups', groupId));
+  if (!groupSnap.exists()) throw new Error('Circle not found');
+  const groupData = groupSnap.data() as { ownerId?: string; adminId?: string; name?: string; public?: boolean; archived?: boolean };
+  const ownerOrAdmin = groupData.adminId || groupData.ownerId || '';
+  if (ownerOrAdmin !== uid) {
+    throw new Error('Only the circle creator can modify settings');
+  }
+
   const cleaned: Record<string, unknown> = {};
-  if (patch.name !== undefined) cleaned.name = patch.name.trim().slice(0, 60);
+  if (patch.name !== undefined) {
+    const nextName = patch.name.trim().slice(0, 60);
+    if (!nextName) throw new Error('Circle name cannot be empty');
+    cleaned.name = nextName;
+  }
   if (patch.public !== undefined) cleaned.public = patch.public;
   if (patch.archived !== undefined) cleaned.archived = patch.archived;
+  cleaned.ownerId = groupData.ownerId ?? uid;
+  if (groupData.adminId) cleaned.adminId = groupData.adminId;
+  if ((groupData as { createdBy?: string }).createdBy) cleaned.createdBy = (groupData as { createdBy?: string }).createdBy;
 
   await setDoc(doc(db, 'groups', groupId), cleaned, { merge: true });
 }
@@ -339,6 +380,14 @@ export async function listGroupMembers(groupId: string): Promise<Array<{ uid: st
 }
 
 export async function removeMember(groupId: string, memberUid: string): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Not logged in');
+  const groupSnap = await getDoc(doc(db, 'groups', groupId));
+  if (!groupSnap.exists()) throw new Error('Circle not found');
+  const groupData = groupSnap.data() as { ownerId?: string; adminId?: string };
+  const ownerOrAdmin = groupData.adminId || groupData.ownerId || '';
+  if (ownerOrAdmin !== uid) throw new Error('Only the circle creator can remove members');
+  if (memberUid === uid) throw new Error('Creator cannot remove themselves');
   await deleteDoc(doc(db, 'groups', groupId, 'members', memberUid));
 }
 

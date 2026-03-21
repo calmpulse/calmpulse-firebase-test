@@ -52,6 +52,11 @@ export default function MeditationModePage() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startedAtMsRef = useRef<number | null>(null);
+  const pausedAccumulatedMsRef = useRef<number>(0);
+  const pauseStartedAtMsRef = useRef<number | null>(null);
+  const elapsedRef = useRef<number>(0);
+  const finishedRef = useRef<boolean>(false);
 
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -126,28 +131,70 @@ export default function MeditationModePage() {
 
   // timer loop
   useEffect(() => {
+    elapsedRef.current = elapsed;
+  }, [elapsed]);
+
+  useEffect(() => {
+    finishedRef.current = finished;
+  }, [finished]);
+
+  const markCompleted = () => {
+    if (finishedRef.current) return;
+    setElapsed(totalSeconds);
+    setIsPlaying(false);
+    setFinished(true);
+  };
+
+  const getElapsedFromSource = (): number => {
+    const audio = audioRef.current;
+    if (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0) {
+      return Math.max(0, Math.min(totalSeconds, audio.currentTime));
+    }
+    if (!startedAtMsRef.current) return 0;
+    const pausedNow = pauseStartedAtMsRef.current ? Date.now() - pauseStartedAtMsRef.current : 0;
+    const wallSeconds = (Date.now() - startedAtMsRef.current - pausedAccumulatedMsRef.current - pausedNow) / 1000;
+    return Math.max(0, Math.min(totalSeconds, wallSeconds));
+  };
+
+  const resyncTimerUI = (source: string) => {
+    const audio = audioRef.current;
+    const nextElapsed = getElapsedFromSource();
+    setElapsed(nextElapsed);
+
+    if (audio?.ended || nextElapsed >= totalSeconds - 0.05) {
+      markCompleted();
+    }
+  };
+
+  useEffect(() => {
     if (!isPlaying) return;
     timerRef.current = setInterval(() => {
-      setElapsed((p) => {
-        const next = p + 1;
-        if (next >= totalSeconds) {
-          // stop
-          if (timerRef.current) clearInterval(timerRef.current);
-          timerRef.current = null;
-          audioRef.current?.pause();
-          setIsPlaying(false);
-          setFinished(true);
-          return totalSeconds;
-        }
-        return next;
-      });
-    }, 1000);
+      resyncTimerUI('interval-250ms');
+    }, 250);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = null;
     };
-  }, [isPlaying, totalSeconds]);
+  }, [isPlaying]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      resyncTimerUI(`visibility:${document.visibilityState}`);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const onEnded = () => {
+      markCompleted();
+    };
+    audio.addEventListener('ended', onEnded);
+    return () => audio.removeEventListener('ended', onEnded);
+  }, []);
 
   // reward sequence (end-of-timer only): warm fade + gentle release + subtle particles
   useEffect(() => {
@@ -207,6 +254,8 @@ export default function MeditationModePage() {
         setElapsed(0);
         audioRef.current!.currentTime = 0;
         await audioRef.current!.play();
+        if (!startedAtMsRef.current) startedAtMsRef.current = Date.now();
+        pauseStartedAtMsRef.current = null;
         setIsPlaying(true);
         if (userId) startSession(userId);
       } catch {
@@ -220,7 +269,9 @@ export default function MeditationModePage() {
   }, [audioURL]);
 
   const pause = () => {
+    if (!pauseStartedAtMsRef.current) pauseStartedAtMsRef.current = Date.now();
     audioRef.current?.pause();
+    resyncTimerUI('pause-click');
     setIsPlaying(false);
   };
 
@@ -228,6 +279,12 @@ export default function MeditationModePage() {
     if (!audioRef.current) return;
     try {
       await audioRef.current.play();
+      if (!startedAtMsRef.current) startedAtMsRef.current = Date.now();
+      if (pauseStartedAtMsRef.current) {
+        pausedAccumulatedMsRef.current += Date.now() - pauseStartedAtMsRef.current;
+        pauseStartedAtMsRef.current = null;
+      }
+      resyncTimerUI('resume-click');
       setIsPlaying(true);
       setAutoplayBlocked(false);
       if (userId) startSession(userId);
@@ -246,16 +303,20 @@ export default function MeditationModePage() {
   const progress = totalSeconds > 0 ? Math.min(1, elapsed / totalSeconds) : 0;
   const dashOffset = circumference * (1 - progress);
   const remaining = Math.max(0, totalSeconds - elapsed);
+  const remainingWhole = Math.floor(remaining);
   const remainingLabel =
-    remaining >= 60
-      ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`
-      : `${remaining}s`;
+    remainingWhole >= 60
+      ? `${Math.floor(remainingWhole / 60)}:${String(remainingWhole % 60).padStart(2, '0')}`
+      : `${remainingWhole}s`;
 
   const onConfirmYes = async () => {
     setConfirmed(true);
     // per requirements: if not logged in, do not save
     if (!userId) return;
-    await completeSession(userId, totalSeconds);
+    const audio = audioRef.current;
+    const elapsedFromSource = Math.floor(getElapsedFromSource());
+    const actualCompletedSeconds = audio?.ended ? totalSeconds : Math.min(totalSeconds, Math.max(0, elapsedFromSource));
+    await completeSession(userId, actualCompletedSeconds);
   };
 
   const onSkipTomorrow = () => {

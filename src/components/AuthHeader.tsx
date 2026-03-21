@@ -750,7 +750,7 @@ function MenuItem({
         <span style={{ display: 'flex', alignItems: 'center', color: danger ? '#e11d48' : '#666', transition: 'color .2s ease' }}>
           {icon}
         </span>
-        <span>{label}</span>
+        <span style={{ fontWeight: danger ? 550 : 500 }}>{label}</span>
       </Link>
     );
   }
@@ -773,7 +773,7 @@ function MenuItem({
       <span style={{ display: 'flex', alignItems: 'center', color: danger ? '#e11d48' : '#666', transition: 'color .2s ease' }}>
         {icon}
       </span>
-      <span>{label}</span>
+      <span style={{ fontWeight: danger ? 550 : 500 }}>{label}</span>
     </button>
   );
 }
