@@ -56,6 +56,14 @@ export default function ProgressPage() {
     new Intl.DateTimeFormat('en', { weekday: 'short', timeZone: 'Europe/Paris' }).format(new Date(`${dayKey}T12:00:00Z`)) as keyof typeof weekdayOrder;
   const weekForDisplay = [...week].sort((a, b) => weekdayOrder[weekdayFromKey(a)] - weekdayOrder[weekdayFromKey(b)]);
 
+  useEffect(() => {
+    const today = new Date();
+    const sundayKeyInWeek = weekForDisplay.find((d) => weekdayFromKey(d) === 'Sun') ?? null;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/02940da6-2895-4c35-a8a8-59b86544a4cb',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'833268'},body:JSON.stringify({sessionId:'833268',runId:'pre-fix',hypothesisId:'H3',location:'src/app/progress/page.tsx:weekly-render-map',message:'weekly display mapping and sunday membership',data:{todayIso:today.toISOString(),todayParisKey:toLocalDay(today),week,weekForDisplay,sundayKeyInWeek,sundayFilled:!!(sundayKeyInWeek && days.includes(sundayKeyInWeek)),daysCount:days.length},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  }, [days, week, weekForDisplay]);
+
   /* -------- listen to auth state changes -------- */
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -197,6 +205,10 @@ export default function ProgressPage() {
         }
 
         const uniqueDays = Array.from(daySet).sort();
+        const sundayDays = uniqueDays.filter((dayKey) => weekdayFromKey(dayKey) === 'Sun');
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/02940da6-2895-4c35-a8a8-59b86544a4cb',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'833268'},body:JSON.stringify({sessionId:'833268',runId:'pre-fix',hypothesisId:'H2',location:'src/app/progress/page.tsx:fetch-sessions-normalization',message:'normalized session day keys after fetch',data:{uidPresent:!!uid,totalDocs:snap.docs.length,uniqueDaysCount:uniqueDays.length,sundayDaysCount:sundayDays.length,latestSundayDay:sundayDays[sundayDays.length-1]??null,lastFiveDays:uniqueDays.slice(-5)},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         const totalSeconds = rawTotalSeconds;
         setDays(uniqueDays);
         setTotalMinutes(Math.floor(totalSeconds / 60));

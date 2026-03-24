@@ -1,7 +1,6 @@
 // src/lib/streak.ts
 import { formatInTimeZone } from 'date-fns-tz';
 import {
-  eachDayOfInterval,
   differenceInCalendarDays,
 } from 'date-fns';
 
@@ -47,16 +46,32 @@ export function streakStats(days: string[]) {
 
 /* ---------- 3. Semaine ISO courante ---------- */
 export function weekDays(today = new Date()): string[] {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/02940da6-2895-4c35-a8a8-59b86544a4cb',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'833268'},body:JSON.stringify({sessionId:'833268',runId:'pre-fix',hypothesisId:'H1',location:'src/lib/streak.ts:weekDays:entry',message:'weekDays input date context',data:{todayIso:today.toISOString(),utcDay:today.getUTCDay(),utcDate:today.getUTCDate(),utcMonth:today.getUTCMonth()+1,utcYear:today.getUTCFullYear(),parisDayKey:toLocalDay(today),parisWeekday:new Intl.DateTimeFormat('en',{weekday:'short',timeZone:TZ}).format(today)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  const parisTodayKey = toLocalDay(today);
+  const [year, month, day] = parisTodayKey.split('-').map(Number);
+  const parisTodayNoonUTC = new Date(Date.UTC(year, month - 1, day, 12));
+  const weekdayShort = new Intl.DateTimeFormat('en', { weekday: 'short', timeZone: TZ }).format(parisTodayNoonUTC);
+  const mondayBasedIndex = ({ Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 } as const)[weekdayShort as 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun'] ?? 0;
   const monday = new Date(Date.UTC(
-    today.getUTCFullYear(),
-    today.getUTCMonth(),
-    today.getUTCDate() - ((today.getUTCDay() + 6) % 7),
+    year,
+    month - 1,
+    day - mondayBasedIndex,
     12 // midi UTC
   ));
   const sunday = new Date(monday);
   sunday.setUTCDate(monday.getUTCDate() + 6);
 
-  return eachDayOfInterval({ start: monday, end: sunday }).map(toLocalDay);
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const current = new Date(monday);
+    current.setUTCDate(monday.getUTCDate() + i);
+    return toLocalDay(current);
+  });
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/02940da6-2895-4c35-a8a8-59b86544a4cb',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'833268'},body:JSON.stringify({sessionId:'833268',runId:'pre-fix',hypothesisId:'H4',location:'src/lib/streak.ts:weekDays:result',message:'computed week bounds and keys',data:{mondayIso:monday.toISOString(),sundayIso:sunday.toISOString(),mondayKey:toLocalDay(monday),sundayKey:toLocalDay(sunday),week},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  return week;
 }
 
 /* ---------- 4. Dates du mois ---------- */
